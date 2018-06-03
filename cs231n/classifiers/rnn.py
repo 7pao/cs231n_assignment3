@@ -137,7 +137,25 @@ class CaptioningRNN(object):
         # defined above to store loss and gradients; grads[k] should give the      #
         # gradients for self.params[k].                                            #
         ############################################################################
-        pass
+        h0 = features.dot(W_proj) + b_proj
+        x, cache_proj = word_embedding_forward(captions_in, W_embed)
+        if self.cell_type is 'rnn':
+            h, cache_rnn = rnn_forward(x, h0, Wx, Wh, b)
+        elif self.cell_type is 'lstm':
+            h, cache_lstm = lstm_forward(x, h0, Wx, Wh, b)
+        else:
+            raise ValueError('Invalid cell_type "%s"' % slef.cell_type)
+        socres, cache_vocab = temporal_affine_forward(h, W_vocab, b_vocab)
+        loss, dout = temporal_softmax_loss(socres, captions_out, mask)
+        
+        dh, grads['W_vocab'], grads['b_vocab'] = temporal_affine_backward(dout, cache_vocab)
+        if self.cell_type is 'rnn':
+            dx, dh0, grads['Wx'], grads['Wh'], grads['b'] = rnn_backward(dh, cache_rnn)
+        elif self.cell_type is 'lstm':
+            dx, dh0, grads['Wx'], grads['Wh'], grads['b'] = lstm_backward(dh, cache_lstm)
+        grads['W_embed'] = word_embedding_backward(dx, cache_proj)
+        grads['W_proj'] = features.T.dot(dh0)
+        grads['b_proj'] = np.sum(dh0,axis=0)
         ############################################################################
         #                             END OF YOUR CODE                             #
         ############################################################################
@@ -199,7 +217,19 @@ class CaptioningRNN(object):
         # functions; you'll need to call rnn_step_forward or lstm_step_forward in #
         # a loop.                                                                 #
         ###########################################################################
-        pass
+        h = features.dot(W_proj) + b_proj
+        caption = self._start * np.ones((N, 1), dtype=np.int32)        
+        for t in range(max_length):
+            x, _ = word_embedding_forward(caption, W_embed)
+            if self.cell_type is 'rnn':
+                h, _ = rnn_step_forward(x.reshape(N,-1), h, Wx, Wh, b)
+            elif self.cell_type is 'lstm':
+                h, _ = lstm_step_forward(x.reshape(N,-1), h, Wx, Wh, b)
+            else:
+                raise ValueError('Invalid cell_type "%s"' % slef.cell_type)
+            socres, _ = temporal_affine_forward(h.reshape(N,1,-1), W_vocab, b_vocab)
+            caption = np.argmax(socres, axis=2).reshape(-1)
+            captions[:,t] = caption
         ############################################################################
         #                             END OF YOUR CODE                             #
         ############################################################################

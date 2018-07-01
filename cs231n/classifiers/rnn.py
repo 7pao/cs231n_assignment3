@@ -218,13 +218,14 @@ class CaptioningRNN(object):
         # a loop.                                                                 #
         ###########################################################################
         h = features.dot(W_proj) + b_proj
+        c = np.zeros((N, W_proj.shape[1]))
         caption = self._start * np.ones((N, 1), dtype=np.int32)        
         for t in range(max_length):
             x, _ = word_embedding_forward(caption, W_embed)
             if self.cell_type is 'rnn':
                 h, _ = rnn_step_forward(x.reshape(N,-1), h, Wx, Wh, b)
             elif self.cell_type is 'lstm':
-                h, _ = lstm_step_forward(x.reshape(N,-1), h, Wx, Wh, b)
+                h, c, _ = lstm_step_forward(x.reshape(N,-1), h, c, Wx, Wh, b)
             else:
                 raise ValueError('Invalid cell_type "%s"' % slef.cell_type)
             socres, _ = temporal_affine_forward(h.reshape(N,1,-1), W_vocab, b_vocab)
